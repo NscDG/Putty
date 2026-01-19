@@ -2178,6 +2178,14 @@ void logfopen(LogContext *logctx);
 void logfclose(LogContext *logctx);
 void logtraffic(LogContext *logctx, unsigned char c, int logmode);
 void logflush(LogContext *logctx);
+/*
+ * Truncate (zero-length) the currently configured session log file.
+ *
+ * Best-effort, intended for interactive use: if logging is enabled, this
+ * forces the on-disk log file back to empty and (re)opens it so further
+ * logging continues into the same file.
+ */
+void log_truncate(LogContext *logctx);
 LogPolicy *log_get_policy(LogContext *logctx);
 void logevent(LogContext *logctx, const char *event);
 void logeventf(LogContext *logctx, const char *fmt, ...) PRINTF_LIKE(2, 3);

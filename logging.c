@@ -202,6 +202,58 @@ void logfclose(LogContext *ctx)
     ctx->state = L_CLOSED;
 }
 
+void log_truncate(LogContext *ctx)
+{
+    struct tm tm;
+
+    if (!ctx)
+        return;
+
+    if (!ctx->logtype)
+        return;
+
+    /*
+     * If we're mid-way through an async open, don't try to interfere.
+     * The GUI command is best-effort, so just ignore in that case.
+     */
+    if (ctx->state == L_OPENING)
+        return;
+
+    /* Ensure we have the current expanded filename. */
+    tm = ltime();
+    if (ctx->currlogfilename)
+        filename_free(ctx->currlogfilename);
+    ctx->currlogfilename =
+        xlatlognam(conf_get_filename(ctx->conf, CONF_logfilename),
+                   conf_dest(ctx->conf),
+                   conf_get_int(ctx->conf, CONF_port), &tm);
+
+    /* Drop any buffered data waiting to be written. */
+    bufchain_clear(&ctx->queue);
+
+    /* Close any existing handle, then reopen in overwrite mode. */
+    logfclose(ctx);
+    ctx->lgfp = f_open(ctx->currlogfilename, "wb", false);
+    if (ctx->lgfp) {
+        ctx->state = L_OPEN;
+        lp_eventlog(ctx->lp, "Truncated session log file");
+
+        if (conf_get_bool(ctx->conf, CONF_logheader)) {
+            char buf[256];
+            strftime(buf, 24, "%Y.%m.%d %H:%M:%S", &tm);
+            logprintf(ctx, "=~=~=~=~=~=~=~=~=~=~=~= PuTTY log %s"
+                      " =~=~=~=~=~=~=~=~=~=~=~="
+                      "\r\n", buf);
+        }
+
+        logflush(ctx);
+    } else {
+        ctx->state = L_ERROR;
+        lp_eventlog(ctx->lp,
+                    "Disabled writing session log due to error while truncating");
+    }
+}
+
 /*
  * Log session traffic.
  */

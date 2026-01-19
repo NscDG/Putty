@@ -43,6 +43,7 @@
 #define IDM_RECONF    0x0050
 #define IDM_CLRSB     0x0060
 #define IDM_RESET     0x0070
+#define IDM_TRUNCLOG  0x0080
 #define IDM_HELP      0x0140
 #define IDM_ABOUT     0x0150
 #define IDM_SAVEDSESS 0x0160
@@ -766,6 +767,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
             AppendMenu(m, MF_ENABLED, IDM_COPYALL, "C&opy All to Clipboard");
             AppendMenu(m, MF_ENABLED, IDM_CLRSB, "C&lear Scrollback");
             AppendMenu(m, MF_ENABLED, IDM_RESET, "Rese&t Terminal");
+            AppendMenu(m, MF_ENABLED, IDM_TRUNCLOG,
+                       "Tr&uncate Log, Clear && Reset");
             AppendMenu(m, MF_SEPARATOR, 0, 0);
             AppendMenu(m, (conf_get_int(wgs->conf, CONF_resize_action)
                            == RESIZE_DISABLED) ? MF_GRAYED : MF_ENABLED,
@@ -2545,6 +2548,14 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
             break;
           case IDM_RESET:
             term_pwron(wgs->term, true);
+            if (wgs->ldisc)
+                ldisc_echoedit_update(wgs->ldisc);
+            break;
+          case IDM_TRUNCLOG:
+            /* Best-effort: truncate on-disk log, then clear and reset UI. */
+            log_truncate(wgs->logctx);
+            term_pwron(wgs->term, true);
+            term_clrsb(wgs->term);
             if (wgs->ldisc)
                 ldisc_echoedit_update(wgs->ldisc);
             break;
