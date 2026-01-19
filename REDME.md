@@ -1,3 +1,7 @@
+Added useful short cut to add in log snaps
+
+AI added 1-click Truncate log, reset Terminal, clear scroll back. 
+
 PuTTY source code README
 ========================
 
