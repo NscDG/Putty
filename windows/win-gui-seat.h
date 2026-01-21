@@ -5,6 +5,16 @@
  */
 
 typedef struct WinGuiSeat WinGuiSeat;
+typedef struct TriggerWatchCtx TriggerWatchCtx;
+typedef struct TriggerWatchDelayCtx TriggerWatchDelayCtx;
+
+struct TriggerWatchCtx {
+    WinGuiSeat *wgs;
+};
+
+struct TriggerWatchDelayCtx {
+    WinGuiSeat *wgs;
+};
 
 struct PopupMenu {
     HMENU menu;
@@ -138,6 +148,19 @@ struct WinGuiSeat {
 
     long last_beep_time;
 
+    /*
+     * Trigger-file watcher: optional automation that can clear/reset the
+     * terminal and truncate the current log when a specified file changes.
+     * (Configured via Session/Logging.)
+     */
+    unsigned long trigger_watch_timer_id;
+    bool trigger_watch_last_valid;
+    FILETIME trigger_watch_last_write;
+    TriggerWatchCtx trigger_watch_ctx;
+
+    unsigned long trigger_watch_delay_timer_id;
+    bool trigger_watch_delay_pending;
+    TriggerWatchDelayCtx trigger_watch_delay_ctx;
     bool ignore_clip;
     bool fullscr_on_max;
     bool processed_resize;

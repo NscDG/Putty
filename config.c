@@ -2006,6 +2006,24 @@ void setup_config_box(struct controlbox *b, bool midsession,
                   HELPCTX(logging_header),
                   conf_checkbox_handler, I(CONF_logheader));
 
+    /*
+     * Trigger-file controlled log truncate / terminal reset
+     */
+    ctrl_checkbox(s, "Watch trigger file",
+                  NO_SHORTCUT, HELPCTX(logging_main),
+                  conf_checkbox_handler, I(CONF_trigger_watch_enable));
+
+    ctrl_editbox(s, "Delay (s):", NO_SHORTCUT, 20,
+                 HELPCTX(logging_main),
+                 conf_editbox_handler, I(CONF_trigger_watch_delay_sec),
+                 ED_INT);
+
+    ctrl_filesel(s, "Trigger file:", NO_SHORTCUT,
+                 FILTER_ALL_FILES, false, "Select trigger file",
+                 HELPCTX(logging_filename),
+                 conf_filesel_handler, I(CONF_trigger_watch_file));
+
+
     if ((midsession && protocol == PROT_SSH) ||
         (!midsession && backend_vt_from_proto(PROT_SSH))) {
         s = ctrl_getset(b, "Session/Logging", "ssh",

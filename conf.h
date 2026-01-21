@@ -858,6 +858,26 @@ CONF_OPTION(logheader,
     DEFAULT_BOOL(true),
     SAVE_KEYWORD("LogHeader"),
 )
+
+/*
+ * Optional automation: watch a trigger file on disk. When it changes,
+ * PuTTY will truncate the current session log (if any), reset the
+ * terminal, and clear scrollback.
+ */
+CONF_OPTION(trigger_watch_enable,
+    VALUE_TYPE(BOOL),
+    DEFAULT_BOOL(false),
+    SAVE_KEYWORD("TriggerWatchEnable"),
+)
+CONF_OPTION(trigger_watch_file,
+    VALUE_TYPE(FILENAME),
+    SAVE_KEYWORD("TriggerWatchFileName"),
+)
+CONF_OPTION(trigger_watch_delay_sec,
+    VALUE_TYPE(INT),
+    DEFAULT_INT(3),
+    SAVE_KEYWORD("TriggerWatchDelaySec"),
+)
 CONF_OPTION(logomitpass,
     VALUE_TYPE(BOOL),
     DEFAULT_BOOL(true),

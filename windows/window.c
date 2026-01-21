@@ -66,6 +66,10 @@
 #define WM_FULLSCR_ON_MAX (WM_APP + 3)
 #define WM_GOT_CLIPDATA (WM_APP + 4)
 
+/* Forward declarations for trigger-file watcher helpers. */
+static void wgs_do_trunc_clear_reset(WinGuiSeat *wgs);
+static void trigger_watch_rearm(WinGuiSeat *wgs);
+
 /* Needed for Chinese support and apparently not always defined. */
 #ifndef VK_PROCESSKEY
 #define VK_PROCESSKEY 0xE5
@@ -488,6 +492,10 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     memset(wgs, 0, sizeof(*wgs));
     wgs_link(wgs);
 
+    /* Set up per-window context object used for the trigger-file watcher timer. */
+    wgs->trigger_watch_ctx.wgs = wgs;
+    wgs->trigger_watch_delay_ctx.wgs = wgs;
+
     wgs->seat.vt = &win_seat_vt;
     wgs->logpolicy.vt = &win_gui_logpolicy_vt;
     wgs->termwin.vt = &windows_termwin_vt;
@@ -631,6 +639,9 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     term_size(wgs->term, conf_get_int(wgs->conf, CONF_height),
               conf_get_int(wgs->conf, CONF_width),
               conf_get_int(wgs->conf, CONF_savelines));
+
+    /* Start (or not) the optional trigger-file watcher based on configuration. */
+    trigger_watch_rearm(wgs);
 
     /*
      * Correct the guesses for extra_{width,height}.
@@ -885,12 +896,154 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 
 static void wgs_cleanup(WinGuiSeat *wgs)
 {
+    /* Ensure any trigger-file watcher timer is cancelled before teardown. */
+    expire_timer_context(&wgs->trigger_watch_ctx);
+    expire_timer_context(&wgs->trigger_watch_delay_ctx);
     deinit_fonts(wgs);
     sfree(wgs->logpal);
     if (wgs->pal)
         DeleteObject(wgs->pal);
     wgs_unlink(wgs);
     sfree(wgs);
+}
+
+/* ----------------------------------------------------------------------
+ * Trigger-file watcher
+ * ----------------------------------------------------------------------
+ * Optional automation: watch a user-specified file on disk, and when its
+ * modification time increases, run the same action as the "Truncate Log,
+ * Clear & Reset" menu item.
+ */
+
+#define TRIGGER_WATCH_POLL_MS 500
+
+/* Default is configurable in settings; clamp at runtime. */
+#define TRIGGER_WATCH_DELAY_MAX_SEC 3600
+
+static void wgs_do_trunc_clear_reset(WinGuiSeat *wgs)
+{
+    /* Best-effort: truncate on-disk log, then clear and reset UI. */
+    if (wgs->logctx)
+        log_truncate(wgs->logctx);
+    if (wgs->term) {
+        term_pwron(wgs->term, true);
+        term_clrsb(wgs->term);
+    }
+    if (wgs->ldisc)
+        ldisc_echoedit_update(wgs->ldisc);
+}
+
+static void trigger_watch_delay_timer(void *vctx, unsigned long now)
+{
+    (void)now;
+    /* vctx points at wgs->trigger_watch_delay_ctx */
+    TriggerWatchDelayCtx *ctx = (TriggerWatchDelayCtx *)vctx;
+    WinGuiSeat *wgs = ctx->wgs;
+
+    wgs->trigger_watch_delay_timer_id = 0;
+
+    if (!wgs->trigger_watch_delay_pending)
+        return;
+
+    /* If the feature was disabled while we were waiting, do nothing. */
+    if (!conf_get_bool(wgs->conf, CONF_trigger_watch_enable)) {
+        wgs->trigger_watch_delay_pending = false;
+        return;
+    }
+
+    wgs->trigger_watch_delay_pending = false;
+    wgs_do_trunc_clear_reset(wgs);
+}
+
+static bool get_file_lastwrite_time_w(const wchar_t *path, FILETIME *out)
+{
+    WIN32_FILE_ATTRIBUTE_DATA fad;
+    if (!path || !*path)
+        return false;
+    if (!GetFileAttributesExW(path, GetFileExInfoStandard, &fad))
+        return false;
+    *out = fad.ftLastWriteTime;
+    return true;
+}
+
+static void trigger_watch_timer(void *vctx, unsigned long now)
+{
+    (void)now;
+    /* vctx points at wgs->trigger_watch_ctx */
+    TriggerWatchCtx *ctx = (TriggerWatchCtx *)vctx;
+    WinGuiSeat *wgs = ctx->wgs;
+
+    wgs->trigger_watch_timer_id = 0;
+
+    if (!conf_get_bool(wgs->conf, CONF_trigger_watch_enable)) {
+        wgs->trigger_watch_last_valid = false;
+        return; /* not re-arming */
+    }
+
+    const wchar_t *wpath = filename_to_wstr(
+        conf_get_filename(wgs->conf, CONF_trigger_watch_file));
+
+    FILETIME ft;
+    if (get_file_lastwrite_time_w(wpath, &ft)) {
+        if (wgs->trigger_watch_last_valid) {
+            if (CompareFileTime(&ft, &wgs->trigger_watch_last_write) > 0) {
+                wgs->trigger_watch_last_write = ft;
+
+                /* Debounce: arm (or re-arm) a delayed clear/reset action. */
+                int delay_sec = conf_get_int(wgs->conf, CONF_trigger_watch_delay_sec);
+                if (delay_sec < 0)
+                    delay_sec = 0;
+                if (delay_sec > TRIGGER_WATCH_DELAY_MAX_SEC)
+                    delay_sec = TRIGGER_WATCH_DELAY_MAX_SEC;
+
+                expire_timer_context(&wgs->trigger_watch_delay_ctx);
+                wgs->trigger_watch_delay_timer_id = 0;
+                wgs->trigger_watch_delay_pending = true;
+
+                if (delay_sec == 0) {
+                    /* Immediate action requested. */
+                    trigger_watch_delay_timer(&wgs->trigger_watch_delay_ctx, 0);
+                } else {
+                    wgs->trigger_watch_delay_timer_id = schedule_timer(
+                        (unsigned long)delay_sec * 1000UL,
+                        trigger_watch_delay_timer,
+                        &wgs->trigger_watch_delay_ctx);
+                }
+            }
+        } else {
+            /* First successful observation: establish baseline only. */
+            wgs->trigger_watch_last_write = ft;
+            wgs->trigger_watch_last_valid = true;
+        }
+    } else {
+        /* If the file is missing/unreadable, drop baseline and keep polling. */
+        wgs->trigger_watch_last_valid = false;
+    }
+
+    wgs->trigger_watch_timer_id = schedule_timer(
+        TRIGGER_WATCH_POLL_MS, trigger_watch_timer, ctx);
+}
+
+static void trigger_watch_rearm(WinGuiSeat *wgs)
+{
+    /* Cancel any existing watcher timer for this window instance. */
+    expire_timer_context(&wgs->trigger_watch_ctx);
+    wgs->trigger_watch_timer_id = 0;
+
+    /* Also cancel any pending delayed action. */
+    expire_timer_context(&wgs->trigger_watch_delay_ctx);
+    wgs->trigger_watch_delay_timer_id = 0;
+    wgs->trigger_watch_delay_pending = false;
+
+    if (!conf_get_bool(wgs->conf, CONF_trigger_watch_enable)) {
+        wgs->trigger_watch_last_valid = false;
+        return;
+    }
+
+    /* Reset baseline so we only trigger on the next *change* we observe. */
+    wgs->trigger_watch_last_valid = false;
+    wgs->trigger_watch_timer_id = schedule_timer(
+        TRIGGER_WATCH_POLL_MS, trigger_watch_timer, &wgs->trigger_watch_ctx);
 }
 
 char *handle_restrict_acl_cmdline_prefix(char *p)
@@ -2396,6 +2549,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
             /* Pass new config data to the logging module */
             log_reconfig(wgs->logctx, wgs->conf);
 
+            /* Update trigger-file watcher enable/path after reconfiguration. */
+            trigger_watch_rearm(wgs);
+
             sfree(wgs->logpal);
             /*
              * Flush the line discipline's edit buffer in the
@@ -2552,12 +2708,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
                 ldisc_echoedit_update(wgs->ldisc);
             break;
           case IDM_TRUNCLOG:
-            /* Best-effort: truncate on-disk log, then clear and reset UI. */
-            log_truncate(wgs->logctx);
-            term_pwron(wgs->term, true);
-            term_clrsb(wgs->term);
-            if (wgs->ldisc)
-                ldisc_echoedit_update(wgs->ldisc);
+            wgs_do_trunc_clear_reset(wgs);
             break;
           case IDM_ABOUT:
             showabout(hwnd);
