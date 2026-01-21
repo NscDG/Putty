@@ -2006,24 +2006,6 @@ void setup_config_box(struct controlbox *b, bool midsession,
                   HELPCTX(logging_header),
                   conf_checkbox_handler, I(CONF_logheader));
 
-    /*
-     * Trigger-file controlled log truncate / terminal reset
-     */
-    ctrl_checkbox(s, "Watch trigger file",
-                  NO_SHORTCUT, HELPCTX(logging_main),
-                  conf_checkbox_handler, I(CONF_trigger_watch_enable));
-
-    ctrl_editbox(s, "Delay (s):", NO_SHORTCUT, 20,
-                 HELPCTX(logging_main),
-                 conf_editbox_handler, I(CONF_trigger_watch_delay_sec),
-                 ED_INT);
-
-    ctrl_filesel(s, "Trigger file:", NO_SHORTCUT,
-                 FILTER_ALL_FILES, false, "Select trigger file",
-                 HELPCTX(logging_filename),
-                 conf_filesel_handler, I(CONF_trigger_watch_file));
-
-
     if ((midsession && protocol == PROT_SSH) ||
         (!midsession && backend_vt_from_proto(PROT_SSH))) {
         s = ctrl_getset(b, "Session/Logging", "ssh",
@@ -2039,7 +2021,35 @@ void setup_config_box(struct controlbox *b, bool midsession,
     /*
      * The Terminal panel.
      */
-    ctrl_settitle(b, "Terminal", "Options controlling the terminal emulation");
+    
+    /*
+     * The Session/Trigger panel.
+     */
+    ctrl_settitle(b, "Session/Trigger", "Trigger file actions");
+
+    s = ctrl_getset(b, "Session/Trigger", "main", NULL);
+
+    ctrl_checkbox(s, "Watch trigger file",
+                  NO_SHORTCUT, HELPCTX(no_help),
+                  conf_checkbox_handler, I(CONF_trigger_watch_enable));
+
+    ctrl_editbox(s, "Delay (s):", NO_SHORTCUT, 20,
+                 HELPCTX(no_help),
+                 conf_editbox_handler, I(CONF_trigger_watch_delay_sec),
+                 ED_INT);
+
+    ctrl_filesel(s, "Trigger file:", NO_SHORTCUT,
+                 FILTER_ALL_FILES, false, "Select trigger file",
+                 HELPCTX(no_help),
+                 conf_filesel_handler, I(CONF_trigger_watch_file));
+
+    ctrl_text(s, "", HELPCTX(no_help));
+    ctrl_text(s, "When the trigger file changes, PuTTY will:", HELPCTX(no_help));
+    ctrl_text(s, "  - truncate the current session log file", HELPCTX(no_help));
+    ctrl_text(s, "  - reset the terminal", HELPCTX(no_help));
+    ctrl_text(s, "  - clear the scrollback buffer", HELPCTX(no_help));
+
+ctrl_settitle(b, "Terminal", "Options controlling the terminal emulation");
 
     s = ctrl_getset(b, "Terminal", "general", "Set various terminal options");
     ctrl_checkbox(s, "Auto wrap mode initially on", 'w',
