@@ -1,0 +1,24 @@
+^C:\USERS\DAVID\DOCUMENTS\DEV\PUTTY-SRC\BUILD\CMAKEFILES\B3FA570CE5804C204AE15FA5E12FE46A\CHECK_GIT_COMMIT.RULE
+setlocal
+cd C:\Users\david\Documents\dev\putty-src
+if %errorlevel% neq 0 goto :cmEnd
+C:
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" "-DGIT_EXECUTABLE=C:/Program Files/Git/mingw64/bin/git.exe" -DOUTPUT_FILE=C:/Users/david/Documents/dev/putty-src/build/CMakeFiles/cmake_commit.c.tmp -DOUTPUT_TYPE=header -P C:/Users/david/Documents/dev/putty-src/cmake/gitcommit.cmake
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\DAVID\DOCUMENTS\DEV\PUTTY-SRC\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/david/Documents/dev/putty-src -BC:/Users/david/Documents/dev/putty-src/build --check-stamp-file C:/Users/david/Documents/dev/putty-src/build/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

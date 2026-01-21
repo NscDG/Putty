@@ -1,0 +1,30 @@
+^C:\USERS\DAVID\DOCUMENTS\DEV\PUTTY-SRC\BUILD\CMAKEFILES\B3FA570CE5804C204AE15FA5E12FE46A\LICENCE.H.TMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -DLICENCE_FILE=C:/Users/david/Documents/dev/putty-src/LICENCE -DOUTPUT_FILE=C:/Users/david/Documents/dev/putty-src/build/CMakeFiles/licence.h.tmp -P C:/Users/david/Documents/dev/putty-src/cmake/licence.cmake
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\DAVID\DOCUMENTS\DEV\PUTTY-SRC\BUILD\CMAKEFILES\B3FA570CE5804C204AE15FA5E12FE46A\GENERATED_LICENCE_H.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different C:/Users/david/Documents/dev/putty-src/build/CMakeFiles/licence.h.tmp C:/Users/david/Documents/dev/putty-src/build/CMakeFiles/licence.h
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\DAVID\DOCUMENTS\DEV\PUTTY-SRC\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/david/Documents/dev/putty-src -BC:/Users/david/Documents/dev/putty-src/build --check-stamp-file C:/Users/david/Documents/dev/putty-src/build/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
